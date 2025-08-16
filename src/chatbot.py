@@ -5,7 +5,13 @@ class Chatbot:
 
         self.tokenizer = AutoTokenizer.from_pretrained(model_name)
         self.model = AutoModelForCausalLM.from_pretrained(model_name)
-        self.chat_history_ids = None
+        if self.tokenizer.pad_token_id is None:
+            self.tokenizer.pad_token = self.tokenizer.eos_token
+
+        self.system_prompt = "You are a helpful assistant. Respond to the end of this conversation accordingly.\n"
+        enc = self.encode_prompt(self.system_prompt)
+        self.chat_history_ids = enc["input_ids"]          
+        self.chat_history_mask = enc["attention_mask"] 
 
     #    output example:
     #     {
@@ -16,12 +22,7 @@ class Chatbot:
 
         return self.tokenizer(prompt,return_tensors="pt")
    
-    # input
-    # reply_ids = [101, 2009, 2003, 2157, 1998, 2829, 102]
-    # skip_special_tokens=True
-    #
-    # output example:
-    #     "It is sunny and warm"
+
     def decode_reply(self, reply_ids: list[int]) -> str:
         return self.tokenizer.decode(reply_ids, skip_special_tokens=True)
     
@@ -29,26 +30,30 @@ class Chatbot:
     def generate_reply(self, prompt: str) -> str:
         
         new = self.encode_prompt(prompt.rstrip() + "\n")
-        new_ids = new["input_ids"] 
+        new_ids = new["input_ids"]
+        new_mask = new["attention_mask"] 
 
-        if self.chat_history_ids is None:
-            inputs_ids = new_ids
-        else:
-            inputs_ids = torch.cat([self.chat_history_ids, new_ids], dim=1)
+        inputs_ids = torch.cat([self.chat_history_ids, new_ids], dim=1)
+        attention_mask = torch.cat([self.chat_history_mask, new_mask], dim=1)
             
         input_len = inputs_ids.shape[1]
+
         output = self.model.generate(
             input_ids = inputs_ids,
+            attention_mask=attention_mask,
             do_sample=True,
-            temperature=0.9,            # less random
+            temperature=0.8,            # less random
             top_p=0.8,
             top_k=50,
             pad_token_id=self.tokenizer.eos_token_id,
             eos_token_id=self.tokenizer.eos_token_id,
         )
         self.chat_history_ids = output
+        self.chat_history_mask = torch.ones_like(output, dtype=torch.long)
         return self.tokenizer.decode(output[0, input_len:], skip_special_tokens=True).strip()
     
     def reset_history(self):
         
-        self.chat_history_ids = None
+        enc = self.encode_prompt(self.system_prompt)
+        self.chat_history_ids = enc["input_ids"]
+        self.chat_history_mask = enc["attention_mask"]
