@@ -36,7 +36,7 @@ from chatbot import Chatbot
 
 
 def main():
-    bot = Chatbot()
+    bot = Chatbot(model_name='microsoft/DialoGPT-medium')
 
     print("=== Simple Chat UI ===")
     print("Welcome! You are chatting with your bot.\n")
@@ -53,7 +53,7 @@ def main():
 
         if not user_text:
             continue
-        if user_text.lower() in {"/quit", "/exit", ":q"}:
+        if user_text.lower() in {"/quit", "/exit"}:
             print("Bye!")
             break
         if user_text.lower() in {"/reset", "/new"}:
